@@ -131,7 +131,7 @@ python skills\boc-ppt-builder\scripts\assemble_and_export.py --project-root C:\b
 
 ## 支持的 Agent 工具
 
-`boc-ppt-builder` 不是 Codex 专用 skill。核心说明统一放在：
+Agent说明统一放在：
 
 ```text
 skills\boc-ppt-builder\AGENT.md
@@ -152,7 +152,6 @@ CODEBUDDY.md                               CodeBuddy
 skills\boc-ppt-builder\SKILL.md            Skill-folder 兼容入口
 ```
 
-后续如果要改工作流，优先改 `skills\boc-ppt-builder\AGENT.md` 和对应 `references\` 文件；其它入口文件只保留轻量指向，避免多处内容不一致。
 
 ## 使用建议
 
