@@ -1,6 +1,6 @@
 # BOC PPT Master
 
-这是一个用于制作中国银行风格汇报 PPT 的本地项目。项目里已经包含 `ppt-master`、中国银行模板、样例原始材料，以及一个本地编排 skill：`boc-ppt-builder`。
+这是一个用于制作中国银行风格汇报 PPT 的本地项目。项目里已经包含 `ppt-master`、中国银行模板、样例原始材料，以及一个面向主流 Agent 工具的通用工作流包：`boc-ppt-builder`。
 
 它适合这样使用：先把材料拆成一批内容页，再把内容页按章节整理，最后自动补齐封面、目录、章节页、结束页并导出一个完整的 PPTX。
 
@@ -12,7 +12,7 @@ C:\boc_ppt_master
 ├─ ppt_plan\                  内容页规划和中间产物
 ├─ ppt_chapters\              最终组装 PPT 的工作区
 ├─ ppt-master\                底层 PPT/SVG 生成工具和中国银行模板
-└─ skills\boc-ppt-builder\    本项目专用的 PPT 编排 skill
+└─ skills\boc-ppt-builder\    本项目专用的 PPT 编排工作流包
 ```
 
 常用输出位置：
@@ -34,7 +34,7 @@ ppt_chapters\output_pptx\output.pptx   最终 PPTX
 
 把本批要处理的材料放进 `raw_files\`。一次建议只放适合生成 3 到 5 页内容页的材料，材料太多时分批处理效果更稳。
 
-对 Codex 说：
+对当前使用的 Agent 说：
 
 ```text
 根据原始材料做内容页
@@ -73,7 +73,7 @@ ppt_chapters\
 ppt_chapters\asset\
 ```
 
-然后对 Codex 说：
+然后对当前使用的 Agent 说：
 
 ```text
 做PPT的封面和章节
@@ -91,7 +91,7 @@ ppt_chapters\ending.svg
 
 ### 3. 整合 PPT
 
-章节内容和封面/目录/章节页都准备好后，对 Codex 说：
+章节内容和封面/目录/章节页都准备好后，对当前使用的 Agent 说：
 
 ```text
 整合PPT
@@ -128,6 +128,31 @@ python skills\boc-ppt-builder\scripts\validate_chapters.py --project-root C:\boc
 ```powershell
 python skills\boc-ppt-builder\scripts\assemble_and_export.py --project-root C:\boc_ppt_master
 ```
+
+## 支持的 Agent 工具
+
+`boc-ppt-builder` 不是 Codex 专用 skill。核心说明统一放在：
+
+```text
+skills\boc-ppt-builder\AGENT.md
+```
+
+各主流工具入口如下：
+
+```text
+AGENTS.md                                  OpenClaw / Codex / AGENTS.md 兼容工具
+CLAUDE.md                                  Claude Code
+.cursor\rules\boc-ppt-builder.mdc          Cursor
+.cursorrules                               Cursor 旧版规则入口
+.github\copilot-instructions.md            VS Code + GitHub Copilot
+CODEBUDDY.md                               CodeBuddy
+.codebuddy\CODEBUDDY.md                    CodeBuddy workspace memory
+.codebuddy\rules\boc-ppt-builder\RULE.mdc  CodeBuddy project rule
+.codebuddy\skills\boc-ppt-builder\SKILL.md CodeBuddy skill adapter
+skills\boc-ppt-builder\SKILL.md            Skill-folder 兼容入口
+```
+
+后续如果要改工作流，优先改 `skills\boc-ppt-builder\AGENT.md` 和对应 `references\` 文件；其它入口文件只保留轻量指向，避免多处内容不一致。
 
 ## 使用建议
 

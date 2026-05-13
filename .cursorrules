@@ -1,0 +1,7 @@
+# Cursor Rules
+
+For Bank of China PPT workflow tasks, read `skills/boc-ppt-builder/AGENT.md`.
+
+Trigger phrases include `根据原始材料做内容页`, `content页`, `做PPT的封面和章节`, and `整合PPT`.
+
+Prefer `.cursor/rules/boc-ppt-builder.mdc` as the maintained Cursor rule.

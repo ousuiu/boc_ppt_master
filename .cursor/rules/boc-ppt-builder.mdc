@@ -1,0 +1,15 @@
+---
+description: Bank of China PPT builder workflow for content pages, chapter pages, and final PPT assembly.
+alwaysApply: false
+---
+
+# BOC PPT Builder
+
+Apply this rule when the user asks for:
+
+- 根据原始材料做内容页
+- content页
+- 做PPT的封面和章节
+- 整合PPT
+
+Read and follow `skills/boc-ppt-builder/AGENT.md`. Use the scripts in `skills/boc-ppt-builder/scripts/` for deterministic validation and export.

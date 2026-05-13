@@ -1,18 +1,21 @@
 ---
 name: boc-ppt-builder
 description: >
-  Local orchestration skill for Bank of China PPT production in this repository.
-  Use when the user says 根据原始材料做内容页, content页, 做PPT的封面和章节,
-  or 整合PPT. It plans content pages from raw_files, calls ppt-master with the
-  中国银行 template, validates ppt_chapters assets, organizes SVGs, fixes page
-  numbers, and exports ppt_chapters/output_pptx/output.pptx.
+  Agent-neutral orchestration skill for Bank of China PPT production in this
+  repository. Use when the user says 根据原始材料做内容页, content页,
+  做PPT的封面和章节, or 整合PPT. It plans content pages from raw_files,
+  calls ppt-master with the 中国银行 template, validates ppt_chapters assets,
+  organizes SVGs, fixes page numbers, and exports
+  ppt_chapters/output_pptx/output.pptx.
 ---
 
 # BOC PPT Builder
 
 ## Overview
 
-Use this local skill only inside `C:\boc_ppt_master`. It is an orchestration layer over the bundled `ppt-master` skill at `C:\boc_ppt_master\ppt-master\skills\ppt-master`.
+This is an agent-neutral workflow pack for `C:\boc_ppt_master`. It is an orchestration layer over the bundled `ppt-master` skill at `C:\boc_ppt_master\ppt-master\skills\ppt-master`.
+
+For non-Codex agents, the canonical entry is `AGENT.md` in this same folder. This `SKILL.md` is retained for agents that support skill-style folders.
 
 This package contains three workflows:
 
@@ -47,7 +50,7 @@ Load only the selected reference file unless another workflow is explicitly need
 - Treat this skill's user-confirmed plan as the design confirmation. When invoking `ppt-master`, explicitly state that the eight blocking confirmations are skipped for this wrapper and it should continue directly.
 - Preserve generated SVG as the handoff artifact. Delete temporary `ppt-master` project folders after extracting the required SVG when the workflow says to keep only SVG.
 - Use parallel page generation when the active agent/runtime permits independent parallel work. Otherwise generate pages sequentially.
-- Do not install this skill globally; it is intentionally local to this project folder.
+- Do not install this workflow pack globally; keep it versioned in this project folder.
 
 ## Deterministic Helpers
 
