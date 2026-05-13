@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+    <defs>
+        <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1" />
+        </filter>
+    </defs>
+
+  <g id="background-watermark">
+    <image href="assets/end_bg.png" x="0" y="0" width="1280" height="720" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+  <g id="brand-lockup">
+    <image href="assets/boc_full_logo.png" x="1000" y="44" width="250" height="60" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+  <g id="ending-message">
+    <text x="500" y="350" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="50" font-weight="700">{{THANK_YOU}}</text>
+  </g>
+</svg>

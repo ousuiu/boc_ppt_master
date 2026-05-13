@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+    <defs>
+        <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1" />
+        </filter>
+    </defs>
+
+    <!-- 模板: 章节页 - 中国银行 风格 -->
+	
+    <!-- 背景图片 -->
+    <image href="assets/toc_bg.png" x="0" y="0" width="1280" height="720" preserveAspectRatio="xMidYMid meet"/>
+	
+	<!-- 品牌Logo -->
+	<image href="assets/boc_full_logo.png" x="1000" y="44" width="250" height="60" preserveAspectRatio="xMidYMid meet"/>
+
+    <!-- SECTION 标签 -->
+    <text x="640" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="500" fill="#B40029" letter-spacing="4">
+        SECTION {{CHAPTER_NUM}}
+    </text>
+
+    <!-- 章节标题 -->
+    <text x="640" y="400" text-anchor="middle" font-family="SimHei, Arial, sans-serif" font-size="48" font-weight="bold" fill="#1F2328">
+        {{CHAPTER_TITLE}}
+    </text>
+
+    <!-- 页码 -->
+    <text x="640" y="690" text-anchor="middle" font-family="SimHei, PingFang SC, Arial, sans-serif" font-size="14" fill="#8A9099">
+        {{PAGE_NUM}} / {{TOTAL_PAGES}}
+    </text>
+</svg>

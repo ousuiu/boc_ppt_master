@@ -1,0 +1,4 @@
+interface:
+  display_name: "BOC PPT Builder"
+  short_description: "Build BOC PPT pages, chapters, and final decks"
+  default_prompt: "Use $boc-ppt-builder to create BOC-branded content pages, chapter pages, or assemble a final PPTX."

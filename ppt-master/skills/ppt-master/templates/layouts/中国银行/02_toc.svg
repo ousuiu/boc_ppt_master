@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+    <defs>
+        <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1" />
+        </filter>
+    </defs>
+
+    <!-- 模板: 目录页 - 中国银行 风格 -->
+	
+	
+    <!-- 背景纹理图片 -->
+    <image href="assets/toc_bg.png" x="0" y="0" width="1280" height="720" preserveAspectRatio="xMidYMid meet"/>
+	
+    <!-- 页面标题 -->	
+    <text x="92" y="112" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="34" font-weight="700">目录</text>
+    <text x="94" y="145" fill="#7C838C" font-family="Arial, SimHei, sans-serif" font-size="13" letter-spacing="2">CONTENTS</text>
+    <line x1="92" y1="166" x2="320" y2="166" stroke="#A50021" stroke-width="3"/>
+	
+	<!-- 品牌Logo -->
+    <image href="assets/boc_full_logo.png" x="1000" y="44" width="250" height="60" preserveAspectRatio="xMidYMid meet"/>
+	<!--
+		目录条目区
+		默认 2×3 矩阵，可用空间: x=92, y=202, w=1094, h=424
+		1-3 章可删除右列并改为单列；4-6 章使用默认矩阵；未使用条目由 Executor 删除。
+	-->
+	<g id="toc-item-1">
+		<text x="92" y="238" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="42" font-weight="700">01</text>
+		<line x1="145" y1="205" x2="145" y2="260" stroke="#E4E7EB" stroke-width="1.4"/>
+		<text x="168" y="222" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="23" font-weight="700">{{TOC_ITEM_1_TITLE}}</text>
+		<text x="168" y="252" fill="#6B727C" font-family="SimHei, Arial, sans-serif" font-size="14">{{TOC_ITEM_1_DESC}}</text>
+		<line x1="92" y1="286" x2="592" y2="286" stroke="#E4E7EB" stroke-width="1.2"/>
+	</g>
+	<g id="toc-item-2">
+		<text x="668" y="238" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="42" font-weight="700">02</text>
+		<line x1="721" y1="205" x2="721" y2="260" stroke="#E4E7EB" stroke-width="1.4"/>
+		<text x="744" y="222" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="23" font-weight="700">{{TOC_ITEM_2_TITLE}}</text>
+		<text x="744" y="252" fill="#6B727C" font-family="SimHei, Arial, sans-serif" font-size="14">{{TOC_ITEM_2_DESC}}</text>
+		<line x1="668" y1="286" x2="1168" y2="286" stroke="#E4E7EB" stroke-width="1.2"/>
+	</g>
+	<g id="toc-item-3">
+		<text x="92" y="378" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="42" font-weight="700">03</text>
+		<line x1="145" y1="345" x2="145" y2="400" stroke="#E4E7EB" stroke-width="1.4"/>
+		<text x="168" y="362" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="23" font-weight="700">{{TOC_ITEM_3_TITLE}}</text>
+		<text x="168" y="392" fill="#6B727C" font-family="SimHei, Arial, sans-serif" font-size="14">{{TOC_ITEM_3_DESC}}</text>
+		<line x1="92" y1="426" x2="592" y2="426" stroke="#E4E7EB" stroke-width="1.2"/>
+	</g>
+	<g id="toc-item-4">
+		<text x="668" y="378" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="42" font-weight="700">04</text>
+		<line x1="721" y1="345" x2="721" y2="400" stroke="#E4E7EB" stroke-width="1.4"/>
+		<text x="744" y="362" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="23" font-weight="700">{{TOC_ITEM_4_TITLE}}</text>
+		<text x="744" y="392" fill="#6B727C" font-family="SimHei, Arial, sans-serif" font-size="14">{{TOC_ITEM_4_DESC}}</text>
+		<line x1="668" y1="426" x2="1168" y2="426" stroke="#E4E7EB" stroke-width="1.2"/>
+	</g>
+	<g id="toc-item-5">
+		<text x="92" y="518" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="42" font-weight="700">05</text>
+		<line x1="145" y1="485" x2="145" y2="540" stroke="#E4E7EB" stroke-width="1.4"/>
+		<text x="168" y="502" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="23" font-weight="700">{{TOC_ITEM_5_TITLE}}</text>
+		<text x="168" y="532" fill="#6B727C" font-family="SimHei, Arial, sans-serif" font-size="14">{{TOC_ITEM_5_DESC}}</text>
+		<line x1="92" y1="566" x2="592" y2="566" stroke="#E4E7EB" stroke-width="1.2"/>
+	</g>
+	<g id="toc-item-6">
+		<text x="668" y="518" fill="#A50021" font-family="Arial, SimHei, sans-serif" font-size="42" font-weight="700">06</text>
+		<line x1="721" y1="485" x2="721" y2="540" stroke="#E4E7EB" stroke-width="1.4"/>
+		<text x="744" y="502" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="23" font-weight="700">{{TOC_ITEM_6_TITLE}}</text>
+		<text x="744" y="532" fill="#6B727C" font-family="SimHei, Arial, sans-serif" font-size="14">{{TOC_ITEM_6_DESC}}</text>
+		<line x1="668" y1="566" x2="1168" y2="566" stroke="#E4E7EB" stroke-width="1.2"/>
+	</g>
+	
+    <!-- 页码 -->
+    <text x="640" y="690" text-anchor="middle" font-family="SimHei, PingFang SC, Arial, sans-serif" font-size="14" fill="#8A9099">
+        {{PAGE_NUM}} / {{TOTAL_PAGES}}
+    </text>
+	
+</svg>

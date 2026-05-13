@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+    <defs>
+        <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1" />
+        </filter>
+    </defs>
+
+    <!-- 模板: 封面页 - 中国银行 风格 -->
+
+    <!-- 背景图片 -->
+    <image href="assets/cover_bg.png" x="0" y="0" width="1280" height="720" preserveAspectRatio="xMidYMid meet"/>
+	
+    <!-- 品牌Logo -->
+    <image href="assets/boc_full_logo.png" x="1000" y="44" width="250" height="60" preserveAspectRatio="xMidYMid meet"/>
+
+    <!-- 主标题 -->
+    <text x="1170" y="320" text-anchor="end" fill="#B40029" font-family="SimHei, Arial, sans-serif" font-size="60" font-weight="700">{{TITLE}}</text>
+	
+	<!-- 演讲团队 -->
+    <text x="1170" y="375" text-anchor="end" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="1">{{TEAM_NAME}}</text>	
+	
+	<!-- 日期 -->
+    <text x="1170" y="415" text-anchor="end" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1">{{DATE}}</text>
+</svg>

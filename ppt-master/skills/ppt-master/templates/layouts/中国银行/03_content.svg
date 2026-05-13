@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+    <defs>
+        <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1" />
+        </filter>
+    </defs>
+
+	<!-- 模板: 内容页 - 中国银行风格 -->
+
+	<!-- 顶部中国银行Logo -->
+	<image href="assets/boc_full_logo.png" x="1000" y="44" width="250" height="60" preserveAspectRatio="xMidYMid meet"/>
+	
+	<!-- 页面标题（核心观点） -->
+
+	<text x="72" y="80" fill="#1F2328" font-family="SimHei, Arial, sans-serif" font-size="30" font-weight="700">{{PAGE_TITLE}}</text>
+	<line x1="72" y1="98" x2="300" y2="98" stroke="#A50021" stroke-width="3"/>
+	<!-- 内容区域 - 灵活布局占位 -->
+	<!-- 
+		最大可用内容视口: x=40, y=112, w=1200, h=538
+		可使用的布局模式：
+		- KPI 网格 (2×2 或 2×3)
+		- 左文右图 / 左图右文
+		- 三栏卡片
+		- 四象限
+		- 上下分区
+		- Dashboard 风格
+		- 列表 + 说明
+		- charts_index.json 的所有可视化模板
+
+		图表适配规则：
+		优先重排或改写图表内部元素以填满 1200×538。
+		若必须完整保留 1280×720 图表模板，按 scale=0.7472 居中缩放进入此视口。
+	-->
+	<rect x="40" y="112" width="1200" height="538" fill="none" stroke="#E8EAED" stroke-width="2" stroke-dasharray="8,8" />
+	<text x="640" y="372" text-anchor="middle" fill="#9AA0A6" font-size="18" font-family="SimHei, Arial, sans-serif">
+		{{CONTENT_AREA}}  
+	</text>
+	<text x="640" y="412" text-anchor="middle" fill="#9AA0A6" font-size="14" font-family="SimHei, Arial, sans-serif">
+		Content viewport: 1200 × 538 px
+	</text>  
+    <!-- 常用设计元素参考 -->
+    <!-- 
+        KPI 卡片: <rect rx="16" stroke="#A50021" stroke-width="3" fill="#FFFFFF" filter="url(#cardShadow)"/>
+        卡片阴影: filter="url(#cardShadow)"，参数为 dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1"
+        浅灰背景块: <rect rx="12" fill="#F8F9FA"/>
+        品牌色圆点: <circle r="12" fill="#A50021"/>
+        分隔线: <line stroke="#E4E7EB" stroke-width="1"/>
+        数据数字: font-size="56" font-weight="700" fill="#4285F4"
+        数据标签: font-size="16" font-weight="500" fill="#5F6368"
+    -->	
+
+    <!-- 底部灰色横线装饰 -->
+    <line x1="72" y1="660" x2="1208" y2="660" stroke="#E4E7EB" stroke-width="1.2"/>
+    <!-- 页码 -->
+    <text x="640" y="690" text-anchor="middle" font-family="SimHei, PingFang SC, Arial, sans-serif" font-size="14" fill="#8A9099">
+        {{PAGE_NUM}} / {{TOTAL_PAGES}}
+    </text>
+</svg>
