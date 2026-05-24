@@ -1,17 +1,17 @@
 # BOC PPT Master
 
-这是一个用于制作中国银行风格汇报 PPT 的本地项目。项目里已经包含 `ppt-master`、中国银行模板、样例原始材料，以及一个面向主流 Agent 工具的通用工作流包：`boc-ppt-builder`。
+这是一个用于制作中国银行风格汇报 PPT 的本地项目。项目里已经包含 `ppt-master`、中国银行 deck 模板、样例原始材料，以及一个面向主流 Agent 工具的通用工作流包：`boc-ppt-builder`。
 
 它适合这样使用：先把材料拆成一批内容页，再把内容页按章节整理，最后自动补齐封面、目录、章节页、结束页并导出一个完整的 PPTX。
 
 ## 目录结构
 
 ```text
-C:\boc_ppt_master
+C:\Apps\boc_ppt_master
 ├─ raw_files\                 原始材料，做内容页时从这里读取
 ├─ ppt_plan\                  内容页规划和中间产物
 ├─ ppt_chapters\              最终组装 PPT 的工作区
-├─ ppt-master\                底层 PPT/SVG 生成工具和中国银行模板
+├─ ppt-master\                底层 PPT/SVG 生成工具和中国银行 deck 模板
 └─ skills\boc-ppt-builder\    本项目专用的 PPT 编排工作流包
 ```
 
@@ -120,13 +120,13 @@ ppt_chapters\output_pptx\output.pptx
 如果只想检查章节结构和资产引用：
 
 ```powershell
-python skills\boc-ppt-builder\scripts\validate_chapters.py --project-root C:\boc_ppt_master --fix-assets
+python skills\boc-ppt-builder\scripts\validate_chapters.py --project-root C:\Apps\boc_ppt_master --fix-assets --include-top-level
 ```
 
 如果想直接整理并导出最终 PPTX：
 
 ```powershell
-python skills\boc-ppt-builder\scripts\assemble_and_export.py --project-root C:\boc_ppt_master
+python skills\boc-ppt-builder\scripts\assemble_and_export.py --project-root C:\Apps\boc_ppt_master
 ```
 
 ## 支持的 Agent 工具
@@ -160,8 +160,8 @@ skills\boc-ppt-builder\SKILL.md            Skill-folder 兼容入口
 - 章节目录必须按 `c1-标题`、`c2-标题` 这样的格式命名。
 - 章节内内容页必须命名为 `page1.svg`、`page2.svg`。
 - 所有 SVG 引用的本地图片资产，尽量统一放进 `ppt_chapters\asset\`。
-- `ppt-master\` 是底层工具目录，通常不用手动改。
+- `ppt-master\` 是底层工具目录，通常不用手动改。新版 `ppt-master` 的中国银行模板是显式 deck 模板，路径为 `ppt-master\skills\ppt-master\templates\decks\中国银行\`；调用时必须传这个路径，不能只写“用中国银行模板”。
 
 ## 当前状态
 
-项目已经包含中国银行模板和样例 `raw_files`。`ppt_chapters` 当前可以作为最终组装区使用；当其中内容页和章节结构准备好后，就可以运行“整合PPT”生成最终文件。
+项目已经包含中国银行 deck 模板和样例 `raw_files`。`ppt_chapters` 当前可以作为最终组装区使用；当其中内容页和章节结构准备好后，就可以运行“整合PPT”生成最终文件。

@@ -15,6 +15,7 @@ from common_svg import (
     extract_page_pairs,
     replace_page_number,
     rewrite_asset_refs_in_text,
+    seed_asset_dir_from_refs,
 )
 from validate_chapters import collect_top_level_svgs, discover_chapters, validate_asset_refs
 
@@ -34,7 +35,23 @@ def page_file_number(path: Path) -> int:
     raise ValueError(f"Not a page file: {path}")
 
 
-def validate_complete_deck(chapters_dir: Path) -> tuple[list[SlideSource], list[str]]:
+def default_boc_template_assets_dir(project_root: Path) -> Path:
+    return (
+        project_root
+        / "ppt-master"
+        / "skills"
+        / "ppt-master"
+        / "templates"
+        / "decks"
+        / "中国银行"
+        / "assets"
+    )
+
+
+def validate_complete_deck(
+    chapters_dir: Path,
+    template_asset_dirs: list[Path] | None = None,
+) -> tuple[list[SlideSource], list[str], int]:
     errors: list[str] = []
     chapters, chapter_errors = discover_chapters(chapters_dir)
     errors.extend(chapter_errors)
@@ -72,11 +89,19 @@ def validate_complete_deck(chapters_dir: Path) -> tuple[list[SlideSource], list[
     for chapter in chapters:
         svg_paths.extend(chapter.pages)
 
+    copied_asset_count = 0
+    if template_asset_dirs:
+        copied_asset_count, _ = seed_asset_dir_from_refs(
+            svg_paths=svg_paths,
+            asset_dir=chapters_dir / "asset",
+            fallback_asset_dirs=template_asset_dirs,
+        )
+
     asset_errors, _, _ = validate_asset_refs(svg_paths, chapters_dir / "asset", fix_assets=False)
     errors.extend(asset_errors)
 
     if errors:
-        return [], errors
+        return [], errors, copied_asset_count
 
     slides: list[SlideSource] = [
         SlideSource(kind="cover", source=required["cover"]),
@@ -102,7 +127,7 @@ def validate_complete_deck(chapters_dir: Path) -> tuple[list[SlideSource], list[
             )
 
     slides.append(SlideSource(kind="ending", source=required["ending"]))
-    return slides, []
+    return slides, [], copied_asset_count
 
 
 def clean_svg_dir(directory: Path) -> None:
@@ -205,7 +230,7 @@ def repair_output_page_numbers(output_dir: Path, total_pages: int, add_page_numb
     return errors
 
 
-def run_export(project_root: Path, chapters_dir: Path, quiet: bool) -> None:
+def run_export(project_root: Path, chapters_dir: Path, quiet: bool, extra_args: list[str]) -> None:
     ppt_master_script = project_root / "ppt-master" / "skills" / "ppt-master" / "scripts" / "svg_to_pptx.py"
     if not ppt_master_script.exists():
         raise FileNotFoundError(f"Missing ppt-master export script: {ppt_master_script}")
@@ -225,6 +250,7 @@ def run_export(project_root: Path, chapters_dir: Path, quiet: bool) -> None:
     ]
     if quiet:
         command.append("-q")
+    command.extend(extra_args)
 
     subprocess.run(command, check=True)
 
@@ -239,6 +265,22 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not insert page numbers into SVGs that lack an existing page-number node.",
     )
+    parser.add_argument(
+        "--template-assets-dir",
+        default=None,
+        help="Fallback asset directory for missing local refs. Defaults to ppt-master's 中国银行 deck assets.",
+    )
+    parser.add_argument(
+        "--no-template-assets",
+        action="store_true",
+        help="Do not copy missing assets from the bundled 中国银行 deck template.",
+    )
+    parser.add_argument(
+        "--export-arg",
+        action="append",
+        default=[],
+        help="Extra argument passed to ppt-master svg_to_pptx.py. Repeat for values, e.g. --export-arg=-a --export-arg=none.",
+    )
     parser.add_argument("-q", "--quiet", action="store_true", help="Reduce export logging.")
     return parser.parse_args()
 
@@ -247,8 +289,18 @@ def main() -> int:
     args = parse_args()
     project_root = Path(args.project_root).resolve()
     chapters_dir = Path(args.chapters_dir).resolve() if args.chapters_dir else project_root / "ppt_chapters"
+    template_asset_dirs: list[Path] = []
+    if not args.no_template_assets:
+        template_asset_dirs.append(
+            Path(args.template_assets_dir).resolve()
+            if args.template_assets_dir
+            else default_boc_template_assets_dir(project_root)
+        )
 
-    slides, errors = validate_complete_deck(chapters_dir)
+    slides, errors, copied_asset_count = validate_complete_deck(
+        chapters_dir=chapters_dir,
+        template_asset_dirs=template_asset_dirs,
+    )
     if errors:
         print("[ERROR] Cannot assemble PPT:")
         for error in errors:
@@ -273,6 +325,7 @@ def main() -> int:
 
     print("[OK] SVG assembly completed.")
     print(f"  Total pages: {total_pages}")
+    print(f"  Template assets copied: {copied_asset_count}")
     print(f"  SVG edits applied: {rewrite_count}")
     print(f"  final_svg: {chapters_dir / 'final_svg'}")
     print(f"  output_svg: {chapters_dir / 'output_svg'}")
@@ -282,7 +335,12 @@ def main() -> int:
         return 0
 
     try:
-        run_export(project_root=project_root, chapters_dir=chapters_dir, quiet=args.quiet)
+        run_export(
+            project_root=project_root,
+            chapters_dir=chapters_dir,
+            quiet=args.quiet,
+            extra_args=args.export_arg,
+        )
     except subprocess.CalledProcessError as exc:
         print(f"[ERROR] PPTX export failed with exit code {exc.returncode}.")
         return exc.returncode

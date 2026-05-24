@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -73,6 +74,17 @@ def build_asset_index(asset_dir: Path) -> dict[str, list[Path]]:
     return index
 
 
+def build_asset_index_from_dirs(asset_dirs: list[Path]) -> dict[str, list[Path]]:
+    index: dict[str, list[Path]] = {}
+    for asset_dir in asset_dirs:
+        if not asset_dir.exists():
+            continue
+        for path in asset_dir.rglob("*"):
+            if path.is_file():
+                index.setdefault(path.name.lower(), []).append(path)
+    return index
+
+
 def resolve_asset(ref: str, asset_index: dict[str, list[Path]]) -> Path | None:
     name = ref_basename(ref)
     if not name:
@@ -121,6 +133,49 @@ def rewrite_asset_refs_in_text(
         missing=sorted(set(missing)),
         rewritten_count=rewritten_count,
     )
+
+
+def seed_asset_dir_from_refs(
+    svg_paths: list[Path],
+    asset_dir: Path,
+    fallback_asset_dirs: list[Path],
+) -> tuple[int, list[str]]:
+    """Copy referenced assets from known template asset directories when missing."""
+    fallback_index = build_asset_index_from_dirs(fallback_asset_dirs)
+    if not fallback_index:
+        return 0, []
+
+    asset_index = build_asset_index(asset_dir)
+    refs: list[str] = []
+    for svg_path in svg_paths:
+        if not svg_path.exists():
+            continue
+        try:
+            text = svg_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = svg_path.read_text(encoding="utf-8-sig")
+        refs.extend(local_asset_refs(text))
+
+    copied_count = 0
+    unresolved: list[str] = []
+    for ref in sorted(set(refs), key=str.lower):
+        name = ref_basename(ref)
+        if not name or name.lower() in asset_index:
+            continue
+
+        fallback_path = resolve_asset(ref, fallback_index)
+        if fallback_path is None:
+            unresolved.append(ref)
+            continue
+
+        asset_dir.mkdir(parents=True, exist_ok=True)
+        target = asset_dir / fallback_path.name
+        if not target.exists():
+            shutil.copy2(fallback_path, target)
+            copied_count += 1
+        asset_index.setdefault(target.name.lower(), []).append(target)
+
+    return copied_count, sorted(set(unresolved))
 
 
 def extract_page_pairs(svg_text: str) -> list[tuple[int, int]]:

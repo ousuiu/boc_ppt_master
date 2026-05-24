@@ -8,7 +8,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from common_svg import build_asset_index, local_asset_refs, rewrite_asset_refs_in_text
+from common_svg import (
+    build_asset_index,
+    local_asset_refs,
+    rewrite_asset_refs_in_text,
+    seed_asset_dir_from_refs,
+)
 
 
 CHAPTER_DIR_RE = re.compile(r"^c(\d+)-(.+)$", re.IGNORECASE)
@@ -31,6 +36,7 @@ class ValidationResult:
     errors: list[str]
     warnings: list[str]
     rewritten_count: int = 0
+    copied_asset_count: int = 0
 
     @property
     def ok(self) -> bool:
@@ -145,6 +151,7 @@ def validate_chapters(
     chapters_dir: Path,
     fix_assets: bool = False,
     include_top_level: bool = False,
+    template_asset_dirs: list[Path] | None = None,
 ) -> ValidationResult:
     chapters, errors = discover_chapters(chapters_dir)
     warnings: list[str] = []
@@ -154,6 +161,18 @@ def validate_chapters(
         svg_paths.extend(chapter.pages)
     if include_top_level:
         svg_paths.extend(collect_top_level_svgs(chapters_dir))
+
+    copied_asset_count = 0
+    if fix_assets and svg_paths and template_asset_dirs:
+        copied_asset_count, _ = seed_asset_dir_from_refs(
+            svg_paths=svg_paths,
+            asset_dir=chapters_dir / "asset",
+            fallback_asset_dirs=template_asset_dirs,
+        )
+        if copied_asset_count:
+            warnings.append(
+                f"Copied {copied_asset_count} referenced template asset(s) into {chapters_dir / 'asset'}."
+            )
 
     asset_errors, asset_warnings, rewritten_count = validate_asset_refs(
         svg_paths=svg_paths,
@@ -168,6 +187,20 @@ def validate_chapters(
         errors=errors,
         warnings=warnings,
         rewritten_count=rewritten_count,
+        copied_asset_count=copied_asset_count,
+    )
+
+
+def default_boc_template_assets_dir(project_root: Path) -> Path:
+    return (
+        project_root
+        / "ppt-master"
+        / "skills"
+        / "ppt-master"
+        / "templates"
+        / "decks"
+        / "中国银行"
+        / "assets"
     )
 
 
@@ -181,6 +214,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also validate cover.svg, toc.svg, ending.svg, and chapterN.svg asset refs.",
     )
+    parser.add_argument(
+        "--template-assets-dir",
+        default=None,
+        help="Fallback asset directory used with --fix-assets. Defaults to ppt-master's 中国银行 deck assets.",
+    )
+    parser.add_argument(
+        "--no-template-assets",
+        action="store_true",
+        help="Do not copy missing assets from the bundled 中国银行 deck template.",
+    )
     return parser.parse_args()
 
 
@@ -188,11 +231,19 @@ def main() -> int:
     args = parse_args()
     project_root = Path(args.project_root).resolve()
     chapters_dir = Path(args.chapters_dir).resolve() if args.chapters_dir else project_root / "ppt_chapters"
+    template_asset_dirs: list[Path] = []
+    if args.fix_assets and not args.no_template_assets:
+        template_asset_dirs.append(
+            Path(args.template_assets_dir).resolve()
+            if args.template_assets_dir
+            else default_boc_template_assets_dir(project_root)
+        )
 
     result = validate_chapters(
         chapters_dir=chapters_dir,
         fix_assets=args.fix_assets,
         include_top_level=args.include_top_level,
+        template_asset_dirs=template_asset_dirs,
     )
 
     if result.errors:
@@ -202,6 +253,7 @@ def main() -> int:
     else:
         print("[OK] ppt_chapters structure and asset references passed.")
         print(f"  Chapters: {len(result.chapters)}")
+        print(f"  Template assets copied: {result.copied_asset_count}")
         print(f"  Asset references rewritten: {result.rewritten_count}")
 
     for warning in result.warnings:

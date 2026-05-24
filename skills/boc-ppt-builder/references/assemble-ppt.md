@@ -7,7 +7,7 @@ Use this workflow when the user says "整合PPT".
 Run:
 
 ```powershell
-python skills\boc-ppt-builder\scripts\assemble_and_export.py --project-root C:\boc_ppt_master
+python skills\boc-ppt-builder\scripts\assemble_and_export.py --project-root C:\Apps\boc_ppt_master
 ```
 
 The script checks:
@@ -17,6 +17,8 @@ The script checks:
 - `chapter[n].svg` count and numbering match the `c[章节序号]-[章节标题]` folders.
 - Every chapter folder contains sequential `page[章节内页码序号].svg` files.
 - Every local SVG asset reference can be matched by filename under `ppt_chapters/asset/`.
+
+Before checking asset references, the script attempts to copy missing referenced BOC template assets from `ppt-master/skills/ppt-master/templates/decks/中国银行/assets/` into `ppt_chapters/asset/`.
 
 If validation fails, report the errors and end the workflow. Do not export a partial deck.
 
@@ -41,8 +43,8 @@ The script organizes pages into this order:
 It writes the organized SVGs to:
 
 ```text
-C:\boc_ppt_master\ppt_chapters\final_svg
-C:\boc_ppt_master\ppt_chapters\output_svg
+C:\Apps\boc_ppt_master\ppt_chapters\final_svg
+C:\Apps\boc_ppt_master\ppt_chapters\output_svg
 ```
 
 Page numbers are zero-padded to keep filesystem sorting stable, for example `01_cover.svg`.
@@ -60,11 +62,13 @@ The script checks every file in `output_svg/`:
 The script calls:
 
 ```powershell
-python ppt-master\skills\ppt-master\scripts\svg_to_pptx.py C:\boc_ppt_master\ppt_chapters -s output_svg -o C:\boc_ppt_master\ppt_chapters\output_pptx\output.pptx
+python ppt-master\skills\ppt-master\scripts\svg_to_pptx.py C:\Apps\boc_ppt_master\ppt_chapters -s output_svg -o C:\Apps\boc_ppt_master\ppt_chapters\output_pptx\output.pptx
 ```
+
+The upgraded `svg_to_pptx.py` exports native editable PPTX by default and applies default transitions / element entrance animations. Use `assemble_and_export.py --export-arg=...` to pass through advanced `ppt-master` export flags when the user asks for custom animation, SVG snapshot output, paragraph merging, auto-advance, or recorded narration.
 
 The expected primary output is:
 
 ```text
-C:\boc_ppt_master\ppt_chapters\output_pptx\output.pptx
+C:\Apps\boc_ppt_master\ppt_chapters\output_pptx\output.pptx
 ```

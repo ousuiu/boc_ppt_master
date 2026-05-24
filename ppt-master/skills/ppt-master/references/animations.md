@@ -7,9 +7,54 @@ PPT Master's exported PPTX supports **page transitions** (slide-to-slide) and **
 | Layer | Default | Why |
 |---|---|---|
 | Page transition | `fade`, 0.4s | Calm baseline that suits most decks |
-| Per-element animation | `mixed` effect + `after-previous` trigger, 0.4s duration + 0.5s stagger | Groups cascade in automatically on slide entry — zero interaction, with a measured pace for typical content decks |
+| Per-element animation | `auto` effect + `after-previous` trigger, 0.4s duration + 0.5s stagger | Effects are mapped from group id (chart→wipe, card-/step-/pillar-→fly, title/takeaway→fade); image-like ids (`hero` / `figure-` / `image` / `img-` / `kpi`) cycle a richer visual pool (zoom / dissolve / circle / box / diamond / wheel) so multiple images vary across the deck; unmatched ids cycle a small fade/wipe/fly/zoom pool. Cascades automatically on slide entry — zero interaction |
 
 To regenerate a deck with different settings, rerun `svg_to_pptx.py` against the same `svg_output/` (or `svg_final/`) — no need to rerun the LLM. To turn per-element animation off entirely, pass `-a none`.
+
+## Custom Object-Level Animation
+
+Default animation is global. When a deck needs specific object timing — for example title first, chart second, annotation last — use the optional `animations.json` sidecar. The SVG remains static visual source; the sidecar only controls PPTX export behavior.
+
+Run the standalone [`customize-animations`](../workflows/customize-animations.md) workflow when the user asks to tune animation order, effects, timing, or object-level reveals.
+
+```bash
+# Build an editable scaffold from real top-level <g id> anchors
+python3 skills/ppt-master/scripts/animation_config.py scaffold <project>
+
+# Validate references before export
+python3 skills/ppt-master/scripts/animation_config.py validate <project>
+
+# Export reads <project>/animations.json automatically when present
+python3 skills/ppt-master/scripts/svg_to_pptx.py <project>
+```
+
+Minimal sidecar:
+
+```json
+{
+  "version": 1,
+  "slides": {
+    "03_market": {
+      "groups": {
+        "title": { "effect": "fade", "order": 1 },
+        "chart": { "effect": "wipe", "order": 2, "duration": 0.6 },
+        "insight": { "effect": "fly", "order": 3, "delay": 0.2 },
+        "footer": { "effect": "none" }
+      }
+    }
+  }
+}
+```
+
+Rules:
+
+- `slides` keys match SVG stems (`03_market.svg` → `03_market`).
+- `groups` keys match top-level `<g id="...">` anchors.
+- `effect: none` removes that group from the entrance sequence.
+- `order` changes animation order only; it does not change slide layering.
+- `delay` is seconds before that group starts in `after-previous` mode.
+- `duration` overrides the per-group entrance duration.
+- `--animation none` overrides the sidecar and disables all per-element animation.
 
 ## Page Transitions
 
@@ -34,14 +79,14 @@ Flags:
 
 ## Per-Element Animations
 
-Enabled by default (`mixed` effect + `after-previous` trigger). Three Start modes are available — these mirror PowerPoint's animation-pane "Start" dropdown:
+Enabled by default (`auto` effect + `after-previous` trigger). Three Start modes are available — these mirror PowerPoint's animation-pane "Start" dropdown:
 
-- **`on-click`** — entering a slide → first click reveals the first semantic group; each subsequent click reveals the next group in z-order. Suits live presentations where the speaker paces reveals.
+- **`on-click`** — entering a slide → first click reveals the first semantic group; each subsequent click reveals the next group in z-order. Suits live presentations where the speaker paces reveals. Forbidden with `--recorded-narration` because video-ready exports need click-free playback.
 - **`with-previous`** — all groups start together on slide entry, playing their entrance animation in parallel. Stagger ignored.
 - **`after-previous`** (default) — first group fires on slide entry, subsequent groups cascade after the previous one finishes, with `--animation-stagger` extra spacing. Suits kiosk playback, recorded walkthroughs, or anyone who wants visual flow without clicking.
 
 ```bash
-# Default behavior (no flags needed): mixed effect + after-previous cascade
+# Default behavior (no flags needed): auto effect + after-previous cascade
 python3 skills/ppt-master/scripts/svg_to_pptx.py <project>
 
 # Disable per-element animation entirely
@@ -61,19 +106,23 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project> --animation mixed \
 python3 skills/ppt-master/scripts/svg_to_pptx.py <project> --animation-trigger with-previous
 ```
 
-22 single effects: `appear`, `fade`, `fly`, `cut`, `zoom`, `wipe`, `split`, `blinds`, `checkerboard`, `dissolve`, `random_bars`, `peek`, `wheel`, `box`, `circle`, `diamond`, `plus`, `strips`, `wedge`, `stretch`, `expand`, `swivel`. Plus two auto-vary modes:
+22 single effects: `appear`, `fade`, `fly`, `cut`, `zoom`, `wipe`, `split`, `blinds`, `checkerboard`, `dissolve`, `random_bars`, `peek`, `wheel`, `box`, `circle`, `diamond`, `plus`, `strips`, `wedge`, `stretch`, `expand`, `swivel`. Plus three auto-vary modes:
 
-- `mixed` — deterministic. The first animated group on each slide uses `fade`; later groups cycle through a curated visible-effect pool across the deck.
-- `random` — samples from the same pool.
+- `auto` (default) — map effect from the group's SVG id. Information-dense elements get a single stable effect: `chart` / `table` / `legend` / `timeline` / `track` → `wipe`; `card-*` / `pillar-*` / `item-*` / `step-*` / `stage-*` / `tier-*` / `principle-*` → `fly`; `title` / `chapter-*` / `section-*` / `cover-*` / `tagline` / `subtitle` → `fade`; `takeaway` / `callout` / `quote` / `source` / `conclusion` / `note` → `fade`. Image-like ids `hero` / `figure-*` / `image` / `img-*` / `kpi` instead cycle a richer visual pool (`zoom` / `dissolve` / `circle` / `box` / `diamond` / `wheel`) so multiple images vary across the deck. Unmatched ids cycle through `fade` / `wipe` / `fly` / `zoom`.
+- `mixed` (legacy) — deterministic. The first animated group on each slide uses `fade`; later groups cycle through a 16-effect pool (`blinds` / `checkerboard` / `dissolve` / `fly` / `cut` / `random_bars` / `box` / `split` / `strips` / `wedge` / `wheel` / `wipe` / `expand` / `fade` / `swivel` / `zoom`) across the deck. Kept for backward compatibility.
+- `random` — samples from the legacy 16-effect pool.
 
-The pool excludes `appear` because it has no visible motion.
+`appear` is excluded from every variation pool because it has no visible motion.
 
 Flags:
 
-- `-a/--animation` — effect name, `mixed`, `random`, or `none`. Default: `mixed`.
+- `-a/--animation` — effect name, `auto`, `mixed`, `random`, or `none`. Default: `auto`.
 - `--animation-trigger` — Start mode (matches PowerPoint): `on-click`, `with-previous`, or `after-previous` (default).
 - `--animation-duration` — per-element entrance seconds, default `0.4`.
 - `--animation-stagger` — gap between elements in `after-previous` mode (seconds, default `0.5`). Ignored otherwise.
+- `--animation-config` — sidecar path. Default: `<project>/animations.json` when present.
+
+> Note: `--recorded-narration` rejects `on-click`; use `after-previous` or `with-previous` for video-ready narrated decks.
 
 ## Anchor Logic — Top-Level `<g id="...">`
 
@@ -81,7 +130,7 @@ Per-element animations are anchored on **top-level `<g id="...">` content groups
 
 Aim for **3–8 content groups per slide**. This is also the granularity PowerPoint uses for group-select / group-move, so it improves editing ergonomics regardless of animation.
 
-**Chrome groups skip the cascade automatically.** Top-level groups that look like page chrome (background, header/footer, decorations, watermark, page number) are excluded from the click sequence and appear together with the slide. Detection is done on the `id`: after splitting on `-` and `_`, if any token matches `background` / `bg` / `decoration` / `decorations` / `decor` / `header` / `footer` / `chrome` / `watermark` / `pagenumber` / `pagenum`, the group is treated as chrome. Examples that auto-skip: `<g id="background">`, `<g id="bg-texture">`, `<g id="cover-footer">`, `<g id="p03-header">`, `<g id="bottom-decor">`, `<g id="watermark">`. Examples that still animate: `<g id="card-1">`, `<g id="cover-title">`, `<g id="step-discover">`. Don't strip the `<g>` wrapper to avoid animation — keep it (PowerPoint group-select needs it) and just name it appropriately.
+**Chrome groups skip the cascade automatically.** Top-level groups that look like page chrome (background, header/footer, decorations, watermark, page number, nav, logo, dividing rule) are excluded from the click sequence and appear together with the slide. Detection is done on the `id`: after splitting on `-` and `_`, if any token matches `background` / `bg` / `decoration` / `decorations` / `decor` / `header` / `footer` / `chrome` / `watermark` / `pagenumber` / `pagenum` / `nav` / `logo` / `rule`, the group is treated as chrome. Examples that auto-skip: `<g id="background">`, `<g id="bg-texture">`, `<g id="cover-footer">`, `<g id="p03-header">`, `<g id="bottom-decor">`, `<g id="watermark">`, `<g id="nav">`, `<g id="logo-area">`, `<g id="column-rule">`. Examples that still animate: `<g id="card-1">`, `<g id="cover-title">`, `<g id="step-discover">`, `<g id="timeline-track">`. Don't strip the `<g>` wrapper to avoid animation — keep it (PowerPoint group-select needs it) and just name it appropriately.
 
 **Fallback for flat SVGs** (no top-level `<g>` wrappers, only raw `<rect>` / `<text>` / `<path>` at the root):
 
@@ -106,7 +155,7 @@ Executors should wrap logical sections in `<g id>` regardless of whether you pla
 | Auto-play | `--auto-advance 5` |
 | Disable element animation | `-a none` |
 | Switch to on-click trigger | `--animation-trigger on-click` |
-| Use a single effect instead of mixed | `--animation fade` |
+| Use a single effect instead of auto | `--animation fade` |
 | All groups animate together | `--animation-trigger with-previous` |
 | Slower per-element reveal | `--animation-duration 0.5` |
 | Wider gap in after-previous | `--animation-stagger 0.7` |

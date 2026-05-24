@@ -20,8 +20,17 @@ Supported entrance animations (per-element):
 
 Animation modes used by the builder:
     - single effect name (one of the above) — apply to every element
-    - 'mixed'  — first element fades, the rest cycle through a curated visible pool
-    - 'random' — pick a random effect from the same visible pool per element
+    - 'auto'   — pick effect from the group's SVG id. Image-like ids
+                 (hero / figure- / image / img- / kpi) cycle through a
+                 visual pool (zoom / dissolve / circle / box / diamond /
+                 wheel) so multiple images vary across the deck. Other
+                 semantic matches map to a single stable effect
+                 (chart→wipe, card-/step-/pillar-→fly, title/takeaway→fade).
+                 Unmatched ids cycle through a small modern pool
+                 (fade / wipe / fly / zoom).
+    - 'mixed'  — legacy mode: first element fades, the rest cycle through a
+                 larger curated visible pool (kept for backward compatibility).
+    - 'random' — pick a random effect from the legacy pool per element
 
 Dependencies: None (pure XML generation)
 
@@ -161,6 +170,55 @@ _MIXED_POOL = [
     'random_bars', 'box', 'split', 'strips', 'wedge', 'wheel',
     'wipe', 'expand', 'fade', 'swivel', 'zoom',
 ]
+
+# Small modern pool used by 'auto' mode when the group id matches no semantic
+# pattern. Restricted to four widely supported, restrained effects so the
+# fallback cycle never produces PowerPoint-era visuals.
+_AUTO_POOL = ['fade', 'wipe', 'fly', 'zoom']
+
+# Image-only diversity pool. Image-like groups (`hero`, `figure-`, `image`,
+# `img-`, `kpi`) deliberately cycle through a richer set of visual effects
+# rather than mapping to a single effect: images are visual focal points, so
+# variation is desirable on them even when surrounding information-dense
+# elements (titles, charts, lists) stay reserved. Pool members are chosen for
+# image-friendly motion — no PowerPoint-era patterns (blinds / checkerboard /
+# random_bars / wedge) that would dominate raster content.
+_IMAGE_POOL = ['zoom', 'dissolve', 'circle', 'box', 'diamond', 'wheel']
+_IMAGE_KEYWORDS: tuple[str, ...] = ('hero', 'figure-', 'image', 'img-', 'kpi')
+
+# Ordered (substring, effect) patterns consumed by 'auto' mode for non-image
+# groups. The first matching substring in the lowercased group id wins;
+# ordering matters where substrings could overlap (e.g. 'title' before 'item'
+# prevents 'item-title' from being misread as a list item). All substrings are
+# lowercase. Image-like ids are handled separately via ``_IMAGE_POOL`` because
+# they cycle rather than map to a single effect.
+_SEMANTIC_PATTERNS: list[tuple[tuple[str, ...], str]] = [
+    (('title', 'chapter-', 'section-', 'cover-', 'tagline', 'subtitle'), 'fade'),
+    (('chart', 'table', 'legend', 'timeline', 'track'),                   'wipe'),
+    (('card-', 'pillar-', 'item-', 'step-', 'stage-', 'tier-',
+      'principle-', 'q-', 'schema-'),                                     'fly'),
+    (('takeaway', 'callout', 'quote', 'source', 'conclusion', 'note',
+      'try-at-home'),                                                     'fade'),
+]
+
+
+def _semantic_effect(group_id: str | None, idx: int = 0, offset: int = 0) -> str | None:
+    """Return the effect mapped from a group id, or None if no pattern matches.
+
+    Image-like ids cycle through ``_IMAGE_POOL`` using ``idx + offset`` so the
+    same deck shows different effects across multiple images. Other semantic
+    matches return a single stable effect because information-dense elements
+    benefit from consistency, not variation.
+    """
+    if not group_id:
+        return None
+    lower = group_id.lower()
+    if any(k in lower for k in _IMAGE_KEYWORDS):
+        return _IMAGE_POOL[(idx + offset) % len(_IMAGE_POOL)]
+    for substrings, effect in _SEMANTIC_PATTERNS:
+        if any(s in lower for s in substrings):
+            return effect
+    return None
 
 
 def create_timing_xml(
@@ -302,7 +360,8 @@ def create_sequence_timing_xml(
     """Generate a multi-target entrance sequence.
 
     Args:
-        targets: list of (shape_id, delay_ms, animation_name) tuples, in
+        targets: list of (shape_id, delay_ms, animation_name) or
+            (shape_id, delay_ms, animation_name, duration_seconds) tuples, in
             the order they should play. ``delay_ms`` is the gap before
             this element starts, measured from when the previous element
             triggers (only used in ``after-previous`` mode; ignored in
@@ -326,8 +385,17 @@ def create_sequence_timing_xml(
     if trigger not in ('on-click', 'with-previous', 'after-previous'):
         trigger = 'on-click'
 
-    dur_ms = int(duration * 1000)
+    default_dur_ms = int(duration * 1000)
     next_id = 3
+
+    def _target_parts(target: tuple) -> tuple[int, int, str, int]:
+        shape_id, delay_ms, animation = target[:3]
+        if animation not in ANIMATIONS:
+            animation = 'fade'
+        item_dur_ms = default_dur_ms
+        if len(target) > 3 and target[3] is not None:
+            item_dur_ms = int(float(target[3]) * 1000)
+        return int(shape_id), int(delay_ms), str(animation), item_dur_ms
 
     if trigger == 'on-click':
         # Each element is an independent click-driven par directly under
@@ -336,9 +404,7 @@ def create_sequence_timing_xml(
         # clickEffect + animation children. Each click advances the seq.
         steps = []
         for target in targets:
-            shape_id, _delay_ms, animation = target
-            if animation not in ANIMATIONS:
-                animation = 'fade'
+            shape_id, _delay_ms, animation, item_dur_ms = _target_parts(target)
             anim_info = ANIMATIONS[animation]
             preset_id = anim_info.get('presetID', 1)
             preset_subtype = anim_info.get('presetSubtype', 0)
@@ -348,7 +414,7 @@ def create_sequence_timing_xml(
             set_id = next_id + 3
             eff_id = next_id + 4
             next_id += 5
-            effect_xml = _build_effect_xml(animation, shape_id, dur_ms, set_id, eff_id)
+            effect_xml = _build_effect_xml(animation, shape_id, item_dur_ms, set_id, eff_id)
             steps.append(f'''<p:par>
   <p:cTn id="{wrapper_id}" fill="hold">
     <p:stCondLst><p:cond delay="indefinite"/></p:stCondLst>
@@ -389,10 +455,9 @@ def create_sequence_timing_xml(
             with_wrapper_id = next_id
             next_id += 1
         elapsed_ms = 0
+        prev_duration_ms = 0
         for i, target in enumerate(targets):
-            shape_id, delay_ms, animation = target
-            if animation not in ANIMATIONS:
-                animation = 'fade'
+            shape_id, delay_ms, animation, item_dur_ms = _target_parts(target)
             anim_info = ANIMATIONS[animation]
             preset_id = anim_info.get('presetID', 1)
             preset_subtype = anim_info.get('presetSubtype', 0)
@@ -402,7 +467,7 @@ def create_sequence_timing_xml(
                 set_id = next_id + 1
                 eff_id = next_id + 2
                 next_id += 3
-                effect_xml = _build_effect_xml(animation, shape_id, dur_ms, set_id, eff_id)
+                effect_xml = _build_effect_xml(animation, shape_id, item_dur_ms, set_id, eff_id)
                 inner_steps.append(f'''<p:par>
                   <p:cTn id="{leaf_id}" presetID="{preset_id}" presetClass="entr" presetSubtype="{preset_subtype}" fill="hold" nodeType="withEffect">
                     <p:stCondLst><p:cond delay="0"/></p:stCondLst>
@@ -412,14 +477,16 @@ def create_sequence_timing_xml(
                   </p:cTn>
                 </p:par>''')
             else:
-                if i > 0:
-                    elapsed_ms += dur_ms + int(delay_ms)
+                if i == 0:
+                    elapsed_ms = int(delay_ms)
+                else:
+                    elapsed_ms += prev_duration_ms + int(delay_ms)
                 wrapper_id = next_id
                 leaf_id = next_id + 1
                 set_id = next_id + 2
                 eff_id = next_id + 3
                 next_id += 4
-                effect_xml = _build_effect_xml(animation, shape_id, dur_ms, set_id, eff_id)
+                effect_xml = _build_effect_xml(animation, shape_id, item_dur_ms, set_id, eff_id)
                 inner_steps.append(f'''<p:par>
                   <p:cTn id="{wrapper_id}" fill="hold">
                     <p:stCondLst><p:cond delay="{elapsed_ms}"/></p:stCondLst>
@@ -435,6 +502,7 @@ def create_sequence_timing_xml(
                     </p:childTnLst>
                   </p:cTn>
                 </p:par>''')
+                prev_duration_ms = item_dur_ms
 
         inner_xml = '\n                '.join(inner_steps)
         if trigger == 'with-previous':
@@ -468,7 +536,7 @@ def create_sequence_timing_xml(
               </p:par>'''
 
     bld_list = '\n    '.join(
-        f'<p:bldP spid="{sid}" grpId="0"/>' for sid, _, _ in targets
+        f'<p:bldP spid="{target[0]}" grpId="0"/>' for target in targets
     )
     return f'''  <p:timing>
     <p:tnLst>
@@ -494,17 +562,36 @@ def create_sequence_timing_xml(
   </p:timing>'''
 
 
-def pick_animation_effect(mode: str, idx: int, offset: int = 0) -> str:
+def pick_animation_effect(
+    mode: str,
+    idx: int,
+    offset: int = 0,
+    group_id: str | None = None,
+) -> str:
     """Resolve a per-element effect name from a mode string.
 
     - A specific animation name returns itself (no variation).
-    - 'mixed': first element fixed to 'fade', rest cycle through ``_MIXED_POOL``
-      plus ``offset`` (so titles stay calm while content varies across slides).
-    - 'random': uniform random choice from ``_MIXED_POOL``.
+    - 'auto': map ``group_id`` to an effect. Image-like ids
+      (hero / figure- / image / img- / kpi) cycle through ``_IMAGE_POOL``
+      (zoom / dissolve / circle / box / diamond / wheel) by ``idx + offset``
+      so multiple images vary across the deck. Other semantic matches in
+      ``_SEMANTIC_PATTERNS`` return a single stable effect (chart→wipe,
+      card-/step-/pillar-→fly, title/takeaway→fade). When the id matches no
+      pattern, cycle through ``_AUTO_POOL`` (fade / wipe / fly / zoom).
+    - 'mixed' (legacy): first element fixed to 'fade', rest cycle through
+      ``_MIXED_POOL`` plus ``offset`` (so titles stay calm while content varies
+      across slides). Kept for backward compatibility with existing CLI flags
+      and animations.json sidecars.
+    - 'random' (legacy): uniform random choice from ``_MIXED_POOL``.
     - Unknown mode falls back to 'fade'.
     """
     if mode in ANIMATIONS:
         return mode
+    if mode == 'auto':
+        semantic = _semantic_effect(group_id, idx, offset)
+        if semantic is not None:
+            return semantic
+        return _AUTO_POOL[(idx + offset) % len(_AUTO_POOL)]
     if mode == 'mixed':
         if idx == 0:
             return 'fade'

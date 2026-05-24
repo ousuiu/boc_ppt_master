@@ -22,3 +22,9 @@ For deterministic checks and export, prefer the scripts under:
 ```text
 skills/boc-ppt-builder/scripts/
 ```
+
+The bundled `ppt-master` now requires explicit template directory paths. For Bank of China pages, use:
+
+```text
+ppt-master/skills/ppt-master/templates/decks/中国银行
+```

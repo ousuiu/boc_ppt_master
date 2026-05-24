@@ -4,7 +4,9 @@ Use this workflow when the user says "根据原始材料做内容页", "content�
 
 ## Step 1 - Read Raw Materials
 
-Read every file under `C:\boc_ppt_master\raw_files` as source material. Convert Office/PPT/PDF files to Markdown when needed by using the source conversion tools in `C:\boc_ppt_master\ppt-master\skills\ppt-master\scripts\source_to_md`.
+Read every file under `C:\Apps\boc_ppt_master\raw_files` as source material. Convert Office/PPT/PDF/Excel/Web files to Markdown when needed by using the source conversion tools in `C:\Apps\boc_ppt_master\ppt-master\skills\ppt-master\scripts\source_to_md`.
+
+Relevant upgraded converters include `pdf_to_md.py`, `doc_to_md.py`, `ppt_to_md.py`, `excel_to_md.py`, and `web_to_md.py`.
 
 Keep each batch small. Prefer no more than about 5 content pages per run; reduce the number if the source is dense or the base model is weak.
 
@@ -26,7 +28,7 @@ The stop is mandatory. The user may change total pages, page order, page titles,
 
 ## Step 3 - Create Page Planning Markdown
 
-After confirmation, create a new batch folder under `C:\boc_ppt_master\ppt_plan`.
+After confirmation, create a new batch folder under `C:\Apps\boc_ppt_master\ppt_plan`.
 
 Batch numbering rule:
 
@@ -36,8 +38,8 @@ Batch numbering rule:
 Write one Markdown file per page:
 
 ```text
-C:\boc_ppt_master\ppt_plan\content_batch_N\page1.md
-C:\boc_ppt_master\ppt_plan\content_batch_N\page2.md
+C:\Apps\boc_ppt_master\ppt_plan\content_batch_N\page1.md
+C:\Apps\boc_ppt_master\ppt_plan\content_batch_N\page2.md
 ...
 ```
 
@@ -74,16 +76,21 @@ Include this color scheme in every page plan, unless a user explicitly replaces 
 
 ## Step 4 - Generate Content SVGs
 
-For each page plan, call `ppt-master` with this prompt shape:
+For each page plan, follow `skills/boc-ppt-builder/references/ppt-master-integration.md`, then call `ppt-master` with this prompt shape. The explicit deck template path is mandatory for the upgraded `ppt-master`:
 
 ```text
-使用ppt-master技能,按照/ppt_plan/content_batch_[批次序号]/page[页码序号].md的要求，用中国银行模板content页做1页PPT。跳过ppt-master技能中强制停下的8项检查，直接往前走。这一步不生成最终PPT，只保留该页final_svg。
+使用ppt-master技能。请读取 C:\Apps\boc_ppt_master\ppt-master\skills\ppt-master\SKILL.md，并按新版ppt-master流程执行。
+显式使用deck模板路径：C:\Apps\boc_ppt_master\ppt-master\skills\ppt-master\templates\decks\中国银行
+按照 C:\Apps\boc_ppt_master\ppt_plan\content_batch_[批次序号]\page[页码序号].md 的要求，只生成1页中国银行content页，继承 03_content.svg 的内容页结构。
+本wrapper已完成分页确认，请把以下内容作为BOC确认束：canvas=ppt169；page_count=1；audience=中国银行管理层/业务条线汇报；style=稳健、克制、金融可信；colors/fonts/template均继承上述deck模板；formula_policy=mixed；image acquisition按该page md显式要求执行。
+不要使用旧的“跳过八项确认”指令。如果当前运行环境仍强制ppt-master Eight Confirmations硬停，请只展示上述紧凑确认束并等待一次确认；确认后继续生成。
+这一步不生成最终PPTX，只需要保留该页最终SVG，并把该SVG引用的本地模板资产复制到 C:\Apps\boc_ppt_master\ppt_plan\asset。
 ```
 
 Save the resulting SVG to:
 
 ```text
-C:\boc_ppt_master\ppt_plan\svg\page[页码序号].svg
+C:\Apps\boc_ppt_master\ppt_plan\svg\page[页码序号].svg
 ```
 
-Delete temporary `ppt-master` intermediate folders after extracting the final SVG. If multiple pages are independent and the active runtime allows parallel work, generate them in parallel.
+Delete temporary `ppt-master` intermediate folders after extracting the final SVG and required local assets. When content SVGs are later moved into `ppt_chapters/cN-.../`, copy any non-template assets from `ppt_plan/asset/` into `ppt_chapters/asset/` as well. Keep `ppt-master` generation sequential inside each temporary project; only run independent page jobs in parallel if the active runtime can isolate them safely.

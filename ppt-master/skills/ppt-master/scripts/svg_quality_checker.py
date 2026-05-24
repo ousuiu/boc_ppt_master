@@ -32,8 +32,18 @@ try:
 except ImportError:
     _parse_spec_lock = None  # spec_lock drift check will be skipped
 
+try:
+    from svg_to_pptx.animation_config import (
+        load_animation_config as _load_animation_config,
+        validate_animation_config as _validate_animation_config,
+    )
+except ImportError:
+    _load_animation_config = None
+    _validate_animation_config = None
+
 
 HEX_VALUE_RE = re.compile(r"#[0-9A-Fa-f]{3,8}")
+SVG_NS = "http://www.w3.org/2000/svg"
 
 # Ramp envelope for font-size drift detection.
 # From design_spec_reference.md §IV — Font Size Hierarchy: the ramp spans
@@ -44,6 +54,32 @@ HEX_VALUE_RE = re.compile(r"#[0-9A-Fa-f]{3,8}")
 # values outside every band — i.e. outside this envelope — are drift.
 RAMP_MIN_RATIO = 0.5
 RAMP_MAX_RATIO = 5.0
+
+
+def _design_spec_is_brand(spec_path: Path) -> bool:
+    """Return True when a design_spec.md frontmatter declares ``kind: brand``.
+
+    Lightweight detector that does not require PyYAML — scans only the
+    frontmatter block (``---`` delimited) for a ``kind:`` line whose value
+    contains ``brand``. Used by ``check_directory`` to skip SVG validation
+    on brand-only template directories.
+    """
+    try:
+        text = spec_path.read_text(encoding='utf-8')
+    except OSError:
+        return False
+    if not text.startswith('---\n'):
+        return False
+    end = text.find('\n---\n', 4)
+    if end == -1:
+        return False
+    fm_block = text[4:end]
+    for line in fm_block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('kind:'):
+            value = stripped.split(':', 1)[1].strip().strip('"\'')
+            return value == 'brand'
+    return False
 
 
 def _parse_placeholders_fallback(block: str) -> Dict[str, Tuple[str, ...]]:
@@ -173,6 +209,7 @@ class SVGQualityChecker:
         # template_mode=True). Each entry is (severity, kind, message) where
         # severity is 'error' or 'warning'. Printed in print_summary.
         self._template_issues: List[Tuple[str, str, str]] = []
+        self._animation_issues: List[Tuple[str, str]] = []
 
     def check_file(self, svg_file: str, expected_format: str = None) -> Dict:
         """
@@ -232,13 +269,19 @@ class SVGQualityChecker:
                 # 6. Check image references (file existence and resolution)
                 self._check_image_references(content, svg_path, result)
 
-                # 7. Check spec_lock drift (colors / font-family / font-size).
+                # 7. Check object-level animation anchor quality.
+                self._check_animation_group_ids(content, result)
+
+                # 7b. Check <pattern> elements declare a PPTX preset.
+                self._check_pattern_fills(content, result)
+
+                # 8. Check spec_lock drift (colors / font-family / font-size).
                 #    Templates do not ship a spec_lock.md, so skip in template
                 #    mode to avoid noise.
                 if not self.template_mode:
                     self._check_spec_lock_drift(content, svg_path, result)
 
-                # 8. Check web-sourced image attribution. Templates don't carry
+                # 9. Check web-sourced image attribution. Templates don't carry
                 #    image_sources.json; skip in template mode.
                 if not self.template_mode:
                     self._check_sourced_image_attribution(content, svg_path, result)
@@ -323,17 +366,21 @@ class SVGQualityChecker:
         # ============================================================
 
         # Clipping / masking
-        # clipPath is ONLY allowed on <image> elements (converter maps to DrawingML
-        # picture geometry).  On shapes it is pointless (just draw the target shape)
-        # and breaks the SVG PPTX rendering.
+        # clipPath is allowed on <image> elements and on pptx_to_svg-generated
+        # nested crop <svg data-pptx-crop="1"> wrappers. Both map back to
+        # DrawingML picture geometry in the native converter.
         if '<clippath' in content_lower:
             # clip-path on non-image elements → error
             clip_on_non_image = re.search(
-                r'<(?!image\b)\w+[^>]*\bclip-path\s*=', content, re.IGNORECASE)
+                r'<(?!image\b)(?!svg\b[^>]*\bdata-pptx-crop\s*=\s*["\']1["\'])\w+[^>]*\bclip-path\s*=',
+                content,
+                re.IGNORECASE,
+            )
             if clip_on_non_image:
                 result['errors'].append(
-                    "clip-path is only allowed on <image> elements — "
-                    "for shapes, draw the target shape directly instead of clipping")
+                    "clip-path is only allowed on <image> elements or "
+                    "pptx_to_svg crop wrappers — for shapes, draw the target "
+                    "shape directly instead of clipping")
             # Check that every clip-path reference has a matching <clipPath> def
             clip_refs = re.findall(r'clip-path\s*=\s*["\']url\(#([^)]+)\)', content)
             for ref_id in clip_refs:
@@ -554,6 +601,86 @@ class SVGQualityChecker:
                 pass  # PIL not available, skip resolution check
             except Exception:
                 pass  # Image unreadable, skip resolution check
+
+    def _check_animation_group_ids(self, content: str, result: Dict):
+        """Warn when visible top-level groups cannot be customized."""
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError:
+            return
+
+        non_visual = {'defs', 'title', 'desc', 'metadata', 'style'}
+        for index, child in enumerate(list(root), start=1):
+            tag = child.tag.split('}', 1)[-1]
+            if tag in non_visual:
+                continue
+            if tag == 'g' and not child.get('id'):
+                result['warnings'].append(
+                    f"Top-level visible <g> #{index} has no id; "
+                    "object-level animation config cannot reference it"
+                )
+
+    # OOXML ST_PresetPatternVal enum — anything outside this set produces a
+    # PPTX schema violation ("PowerPoint found a problem with the content").
+    _OOXML_PATTERN_PRESETS = frozenset({
+        'pct5', 'pct10', 'pct20', 'pct25', 'pct30', 'pct40', 'pct50', 'pct60',
+        'pct70', 'pct75', 'pct80', 'pct90',
+        'horz', 'vert', 'ltHorz', 'ltVert', 'dkHorz', 'dkVert',
+        'narHorz', 'narVert', 'dashHorz', 'dashVert',
+        'cross', 'dnDiag', 'upDiag', 'ltDnDiag', 'ltUpDiag', 'dkDnDiag',
+        'dkUpDiag', 'wdDnDiag', 'wdUpDiag',
+        'dashDnDiag', 'dashUpDiag', 'diagCross',
+        'smCheck', 'lgCheck', 'smGrid', 'lgGrid', 'dotGrid', 'smConfetti',
+        'lgConfetti', 'horzBrick', 'diagBrick', 'solidDmnd', 'openDmnd',
+        'dotDmnd', 'plaid', 'sphere', 'weave', 'wave', 'trellis', 'zigZag',
+        'divot', 'shingle',
+    })
+
+    def _check_pattern_fills(self, content: str, result: Dict):
+        """Audit <pattern> defs that drive PPTX <a:pattFill> output.
+
+        svg_to_pptx maps <pattern fill> to native <a:pattFill prst="...">. The
+        preset name comes from `data-pptx-pattern` (e.g. `lgGrid` / `smGrid` /
+        `dkUpDiag`). Two failure modes worth catching pre-export:
+
+        1. Missing annotation → converter silently falls back to `ltUpDiag`
+           (diagonal stripes) and picks `bg = #FFFFFF` when the pattern has
+           no child <rect>, turning a hand-authored grid into white-on-stripes
+           in PPTX.
+        2. Invalid preset name → PPTX schema rejects the file; PowerPoint
+           opens it with "needs to be repaired". OOXML
+           `ST_PresetPatternVal` is a closed enum — only the names in
+           `_OOXML_PATTERN_PRESETS` are legal. Inventing `ltGrid` (no such
+           value) is the canonical mistake; the only grids are `smGrid` /
+           `lgGrid` / `dotGrid`.
+        """
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError:
+            return
+
+        for pattern in root.iter(f'{{{SVG_NS}}}pattern'):
+            pat_id = pattern.get('id', '<unnamed>')
+            prst = pattern.get('data-pptx-pattern')
+            if not prst:
+                result['warnings'].append(
+                    f"<pattern id=\"{pat_id}\"> has no data-pptx-pattern attribute — "
+                    "PPTX export will fall back to `ltUpDiag` (diagonal stripes), "
+                    "not your custom geometry. Add data-pptx-pattern=\"lgGrid\" / "
+                    "\"smGrid\" / etc. plus a <rect fill=\"<bg>\"/> child so the "
+                    "preset and bg color match your design."
+                )
+                continue
+            if prst not in self._OOXML_PATTERN_PRESETS:
+                result['errors'].append(
+                    f"<pattern id=\"{pat_id}\"> uses data-pptx-pattern=\"{prst}\" "
+                    "which is not in OOXML ST_PresetPatternVal — exported PPTX "
+                    "will fail schema validation ('needs to be repaired'). "
+                    "Use one of: smGrid / lgGrid / dotGrid (grids), "
+                    "ltUpDiag / dkUpDiag / cross / diagCross / weave / plaid / "
+                    "horzBrick (others); full enum in svg_quality_checker.py "
+                    "_OOXML_PATTERN_PRESETS."
+                )
 
     def _get_spec_lock(self, svg_path: Path):
         """Locate and parse spec_lock.md near the SVG. Returns dict or None.
@@ -788,12 +915,29 @@ class SVGQualityChecker:
             print(f"[ERROR] Directory does not exist: {directory}")
             return []
 
+        # Brand-only template directories (templates/brands/<id>/) have no SVG
+        # roster — design_spec.md frontmatter declares `kind: brand`. Skip SVG
+        # checks entirely; brand validation lives in register_template.py.
+        if self.template_mode and dir_path.is_dir():
+            spec = dir_path / 'design_spec.md'
+            if spec.exists() and _design_spec_is_brand(spec):
+                print(
+                    f"[INFO] Brand directory detected (kind: brand) — "
+                    f"SVG checks skipped."
+                )
+                print(
+                    f"[INFO] Validate brand specs via: "
+                    f"python3 scripts/register_template.py "
+                    f"--kind brand <brand_id> --dry-run"
+                )
+                return self.results
+
         # Find all SVG files
         if dir_path.is_file():
             svg_files = [dir_path]
         else:
             if self.template_mode:
-                # Template directories live at templates/layouts/<id>/.
+                # Template directories live at templates/{layouts,decks}/<id>/.
                 svg_files = sorted(dir_path.glob('*.svg'))
             else:
                 svg_output = dir_path / \
@@ -813,8 +957,25 @@ class SVGQualityChecker:
 
         if self.template_mode and dir_path.is_dir():
             self._check_template_contract(dir_path, svg_files)
+        elif dir_path.is_dir():
+            self._check_animation_config_contract(dir_path)
 
         return self.results
+
+    def _check_animation_config_contract(self, dir_path: Path) -> None:
+        """Project-level animations.json reference checks."""
+        if _load_animation_config is None or _validate_animation_config is None:
+            return
+        project_path = dir_path if (dir_path / 'svg_output').exists() else dir_path.parent
+        try:
+            config = _load_animation_config(project_path)
+        except Exception as exc:
+            self._animation_issues.append(('error', f"animations.json is invalid: {exc}"))
+            return
+        if not config:
+            return
+        for warning in _validate_animation_config(project_path, config):
+            self._animation_issues.append(('warning', warning))
 
     def _check_template_contract(self, dir_path: Path,
                                  svg_files: List[Path]) -> None:
@@ -848,17 +1009,17 @@ class SVGQualityChecker:
                 self._template_issues.append((
                     'error',
                     'roster_orphan',
-                    f"{page}.svg exists on disk but is not listed in design_spec.md §VI",
+                    f"{page}.svg exists on disk but is not listed in design_spec.md Page Roster",
                 ))
             for page in missing:
                 self._template_issues.append((
                     'error',
                     'roster_missing',
-                    f"design_spec.md §VI lists {page} but {page}.svg is missing on disk",
+                    f"design_spec.md Page Roster lists {page} but {page}.svg is missing on disk",
                 ))
         elif spec_path.exists():
-            # design_spec.md is present but §VI parser found nothing — surface
-            # as a warning. Legacy specs may not have an explicit roster table.
+            # design_spec.md is present but the roster parser found nothing —
+            # surface as a warning. Legacy specs may lack an explicit roster.
             self._template_issues.append((
                 'warning',
                 'roster_unknown',
@@ -953,26 +1114,27 @@ class SVGQualityChecker:
     def _extract_spec_roster(spec_text: str) -> List[str]:
         """Best-effort: extract the page roster from design_spec.md.
 
-        Existing templates do not use a uniform section title — some declare a
-        formal "§VI. Page Roster" table, others bury the filenames under a
-        prose "§VII. Page Types" section as ``### N. Cover Page (01_cover.svg)``.
-        We try a focused §VI scan first, then fall back to scanning the whole
-        document for any backtick-wrapped ``<stem>.svg`` reference.
+        Templates do not share a uniform section index for the roster — the
+        personality-only skeleton puts it at §V "Page Roster"; legacy specs use
+        §VI "Page Roster" or bury filenames under §VII "Page Types" as
+        ``### N. Cover Page (01_cover.svg)``. We match by title (any roman
+        index), then fall back to scanning the whole document for any
+        backtick-wrapped ``<stem>.svg`` reference.
 
         Returns the deduplicated stem list in document order. Empty result
         means we can't determine the roster confidently — caller should treat
         that as "skip orphan/missing checks", not as "no pages declared".
         """
-        # Pass 1: explicit §VI section.
+        # Pass 1: explicit roster section, any roman numeral.
         section = re.search(
-            r"^##\s+VI\.\s+(?:Page Roster|Page Structure|Pages)\b.*?(?=^##\s+|\Z)",
+            r"^##\s+[IVX]+\.\s+(?:Page Roster|Page Structure|Pages|Page Types)\b.*?(?=^##\s+|\Z)",
             spec_text,
             re.MULTILINE | re.DOTALL | re.IGNORECASE,
         )
         scope = section.group(0) if section else None
 
         # Pass 2: full document. We *only* trust this scan when the explicit
-        # §VI scan came up empty (no `<stem>.svg` references inside it) —
+        # roster scan came up empty (no `<stem>.svg` references inside it) —
         # otherwise the explicit section's deliberate roster wins over loose
         # mentions elsewhere.
         if scope and re.search(r"[`\(][0-9A-Za-z_]+\.svg[`\)]", scope):
@@ -1100,6 +1262,9 @@ class SVGQualityChecker:
         # Template-mode aggregation (orphan/missing roster + placeholder hints)
         self._print_template_summary()
 
+        # Animation config aggregation.
+        self._print_animation_summary()
+
         # Fix suggestions
         if self.summary['errors'] > 0 or self.summary['warnings'] > 0:
             print(f"\n[TIP] Common fixes:")
@@ -1107,6 +1272,24 @@ class SVGQualityChecker:
             print(f"  2. viewBox issues: Ensure consistency with canvas format (see references/canvas-formats.md)")
             print(f"  3. foreignObject: Use <text> + <tspan> for manual line breaks")
             print(f"  4. Font issues: end every font-family stack with a PPT-safe family (e.g. Microsoft YaHei / Arial / Consolas)")
+
+    def _print_animation_summary(self):
+        """Print animations.json validation issues if present."""
+        if not self._animation_issues:
+            return
+
+        errors = [item for item in self._animation_issues if item[0] == 'error']
+        warnings = [item for item in self._animation_issues if item[0] == 'warning']
+        self.summary['errors'] += len(errors)
+        self.summary['warnings'] += len(warnings)
+        for severity, _msg in self._animation_issues:
+            self.issue_types[f'animation_config_{severity}'] += 1
+
+        print("\n[ANIMATION] animations.json checks")
+        for _severity, msg in errors:
+            print(f"  [ERROR] {msg}")
+        for _severity, msg in warnings:
+            print(f"  [WARN] {msg}")
 
     def _print_template_summary(self):
         """Aggregate template-mode roster / placeholder issues at the bottom.
@@ -1232,12 +1415,13 @@ def print_usage() -> None:
     print("  python3 scripts/svg_quality_checker.py examples/project/svg_output/slide_01.svg")
     print("  python3 scripts/svg_quality_checker.py examples/project/svg_output")
     print("  python3 scripts/svg_quality_checker.py examples/project")
-    print("  python3 scripts/svg_quality_checker.py templates/layouts/anthropic --template-mode")
+    print("  python3 scripts/svg_quality_checker.py templates/layouts/academic_defense --template-mode")
+    print("  python3 scripts/svg_quality_checker.py templates/decks/招商银行 --template-mode")
     print("\nOptions:")
     print("  --format <ppt169|ppt43|...>   Expected canvas format")
-    print("  --template-mode               Validate a templates/layouts/<id> directory:")
+    print("  --template-mode               Validate a templates/{layouts,decks}/<id> directory:")
     print("                                  glob *.svg directly, skip spec_lock checks,")
-    print("                                  enforce roster ↔ design_spec.md §VI consistency,")
+    print("                                  enforce roster ↔ design_spec.md Page Roster consistency,")
     print("                                  and emit advisory placeholder-convention warnings.")
 
 
